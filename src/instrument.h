@@ -2,6 +2,7 @@
 #define VALGRIND_INSTRUMENT_H
 
 #include "common.h"
+#include "memory.h"
 
 IRSB* se_instrument(VgCallbackClosure* closure,
                     IRSB* sb_in,

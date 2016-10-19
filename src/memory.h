@@ -8,6 +8,7 @@
 
 #define STACK_SIZE (8 * 1024 * 1024)
 #define HEAP_MAX_SIZE (512 * 1024 * 1024)
+#define REDZONE_SIZE (16)
 
 #define PAGE_SIZE 65536
 #define PAGE_MASK (PAGE_SIZE-1)                        /* DO NOT CHANGE */
@@ -20,6 +21,9 @@
 #define MEM_UNDEFINED 1 // 01
 #define MEM_READONLY  2 // 10
 #define MEM_DEFINED   3 // 11
+
+#define MEM_READ_MASK  2 // 10
+#define MEM_WRITE_MASK 1 // 01
 
 #define PAGEFLAG_UNMAPPED 0 // 0000
 #define PAGEFLAG_MAPPED   1 // 0001
@@ -72,7 +76,41 @@ extern MemorySpace* current_memspace;
 
 /// Functions
 void memspace_init(void);
-void se_handle_new_mmap(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
+
+/// VA
+VA* va_clone(VA* va);
+
+/// Page
+Page* page_find(Addr addr);
+Page* page_find_or_null(Addr addr);
+INLINE Addr page_get_start(Addr addr)
+{
+    return (addr & (~PAGE_MASK));
+}
+
+/// mmap
+void se_handle_mmap(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
                         ULong di_handle);
+void se_handle_mstartup(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
+                        ULong di_handle);
+void se_handle_mprotect(Addr a, SizeT len, Bool rr, Bool ww, Bool xx);
+void se_handle_munmap(Addr a, SizeT len);
+void se_handle_mremap(Addr src, Addr dst, SizeT len);
+
+/// stack alloc
+void se_handle_stack_signal(Addr a, SizeT len, ThreadId tid);
+void se_handle_stack_new(Addr a, SizeT len);
+void se_handle_stack_die(Addr a, SizeT len);
+void se_handle_stack_ban(Addr a, SizeT len);
+
+void se_handle_post_mem_write(CorePart part, ThreadId tid, Addr a, SizeT len);
+
+/// user malloc
+void* se_handle_malloc(ThreadId tid, SizeT n);
+void* se_handle_memalign(ThreadId tid, SizeT alignB, SizeT n);
+void* se_handle_calloc(ThreadId tid, SizeT nmemb, SizeT size1);
+void* se_handle_realloc(ThreadId tid, void* p_old, SizeT new_szB);
+SizeT se_handle_malloc_usable_size(ThreadId tid, void* p);
+void se_handle_free(ThreadId tid, void *a);
 
 #endif //VALGRIND_MEMORY_H

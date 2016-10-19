@@ -45,7 +45,7 @@
 #include "pub_tool_stacktrace.h"
 #include "pub_tool_replacemalloc.h"
 #include "pub_tool_transtab.h"
-#include "pub_tool_machine.h"     // VG_(fnptr_to_fnentry)
+#include "pub_tool_machine.h"
 #include "pub_tool_vki.h"
 #include "valgrind.h"
 
@@ -57,60 +57,6 @@
 #include "src/memory.h"
 #include "src/instrument.h"
 
-char MEMORY[4096] = {0};
-int INDEX = 0;
-
-static void se_post_clo_init(void)
-{
-}
-
-static void se_fini(Int exitcode)
-{
-}
-
-static void* se_client_malloc(ThreadId tid, SizeT n)
-{
-    void *mem = (void*)(MEMORY + INDEX);
-    INDEX += n;
-    return mem;
-}
-
-static
-void* se_client_memalign(ThreadId tid, SizeT alignB, SizeT n)
-{
-    SizeT mod = INDEX % alignB;
-    if (mod != 0)
-    {
-        INDEX += alignB - mod;
-    }
-
-    return se_client_malloc(tid, n);
-}
-
-static
-void* se_client_calloc(ThreadId tid, SizeT nmemb, SizeT size1)
-{
-    return se_client_malloc(tid, nmemb);
-}
-
-static
-void* se_client_realloc(ThreadId tid, void* p_old, SizeT new_szB)
-{
-    return p_old;
-}
-
-static
-SizeT se_client_malloc_usable_size(ThreadId tid, void* p)
-{
-    return 512;
-}
-
-
-static void se_client_free (ThreadId tid, void *a)
-{
-    // no-op
-}
-
 static
 Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
 {
@@ -119,7 +65,7 @@ Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
         return False;
     }
 
-    SEArgType* requestArgs = args[2];
+    /*SEArgType* requestArgs = (SEArgType*) args[2];
     SEArgType argsSize = args[3];
 
     switch (args[1])
@@ -138,10 +84,18 @@ Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
             tl_assert(False);
             break;
         }
-    }
+    }*/
 
     *ret = 0;
     return True;
+}
+
+static void se_post_clo_init(void)
+{
+}
+
+static void se_fini(Int exitcode)
+{
 }
 
 static void se_pre_clo_init(void)
@@ -153,27 +107,42 @@ static void se_pre_clo_init(void)
       "Copyright (C) 2002-2015, and GNU GPL'd, by Nicholas Nethercote.");
     VG_(details_bug_reports_to)  (VG_BUGS_TO);
 
-    VG_(details_avg_translation_sizeB) ( 275 );
+    VG_(details_avg_translation_sizeB) (275);
 
     VG_(needs_syscall_wrapper)(syscall_handle_pre, syscall_handle_post);
 
-    VG_(needs_malloc_replacement)  (se_client_malloc,
-                                    se_client_malloc, //MC_(__builtin_new),
-                                    se_client_malloc, //MC_(__builtin_vec_new),
-                                    se_client_memalign, //MC_(memalign),
-                                    se_client_calloc, //MC_(calloc),
-                                    se_client_free, //MC_(free),
-                                    se_client_free, //MC_(__builtin_delete),
-                                    se_client_free, //MC_(__builtin_vec_delete),
-                                    se_client_realloc, //MC_(realloc),
-                                    se_client_malloc_usable_size, //MC_(malloc_usable_size),
+    VG_(needs_malloc_replacement)  (se_handle_malloc,
+                                    se_handle_malloc, //MC_(__builtin_new),
+                                    se_handle_malloc, //MC_(__builtin_vec_new),
+                                    se_handle_memalign, //MC_(memalign),
+                                    se_handle_calloc, //MC_(calloc),
+                                    se_handle_free, //MC_(free),
+                                    se_handle_free, //MC_(__builtin_delete),
+                                    se_handle_free, //MC_(__builtin_vec_delete),
+                                    se_handle_realloc, //MC_(realloc),
+                                    se_handle_malloc_usable_size, //MC_(malloc_usable_size),
                                     0);
 
     VG_(basic_tool_funcs)        (se_post_clo_init,
                                   se_instrument,
-                                 se_fini);
+                                  se_fini);
 
-    VG_(track_new_mem_mmap)    (se_handle_new_mmap);
+    // mmap
+    VG_(track_new_mem_mmap)    (se_handle_mmap);
+    VG_(track_new_mem_startup) (se_handle_mstartup);
+    VG_(track_change_mem_mprotect) (se_handle_mprotect);
+    VG_(track_copy_mem_remap)      (se_handle_mremap);
+    VG_(track_die_mem_stack_signal)(se_handle_munmap);
+    VG_(track_die_mem_brk)         (se_handle_munmap);
+    VG_(track_die_mem_munmap)      (se_handle_munmap);
+
+    // stack alloc
+    VG_(track_new_mem_stack_signal) (se_handle_stack_signal);
+    VG_(track_new_mem_stack) (se_handle_stack_new);
+    VG_(track_die_mem_stack) (se_handle_stack_die);
+    VG_(track_ban_mem_stack)       (se_handle_stack_ban);
+
+    VG_(track_post_mem_write)      (se_handle_post_mem_write);
 
     VG_(needs_client_requests) (se_handle_client_request);
 
