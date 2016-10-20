@@ -33,5 +33,5 @@ void handle_read(ThreadId tid, UWord* args, UInt nArgs, SysRes res)
     int count = args[2];
     int result = res._val;
 
-    //PRINT("Read: fd=%d, addr=%p, count=%d, result=%d\n", fd, buf, count, result);
+    //PRINT(LOG_DEBUG, "Read: fd=%d, addr=%p, count=%d, result=%d\n", fd, buf, count, result);
 }

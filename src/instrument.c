@@ -2,11 +2,11 @@
 
 static NOINLINE void report_error_write(Addr addr, SizeT size)
 {
-    PRINT("Invalid write at %lx of %d bytes\n", addr, size);
+    PRINT(LOG_ERROR, "Invalid write at %lx of %d bytes\n", addr, size);
 }
 static NOINLINE void report_error_read(Addr addr, SizeT size)
 {
-    PRINT("Invalid read at %lx of %d bytes\n", addr, size);
+    PRINT(LOG_ERROR, "Invalid read at %lx of %d bytes\n", addr, size);
 }
 
 static void event_addr_int(IRSB* sb,
@@ -28,13 +28,14 @@ static VG_REGPARM(2) void handle_write(Addr addr, SizeT size)
         tl_assert(0); // no return here
     }
 
-    //page = page_prepare_for_write_data(page); TODO
+    page = page_prepare_for_write_data(page);
     VA *va = page->va;
     Addr offset = addr - page->base;
     SizeT i;
 
     UChar flag = va->vabits[offset];
     SizeT sz = size;
+
     if (UNLIKELY(offset + sz > PAGE_SIZE))
     {
         sz = PAGE_SIZE - offset;

@@ -1,7 +1,3 @@
-//
-// Created by kobzol on 9/23/16.
-//
-
 #ifndef VALGRIND_COMMON_H
 #define VALGRIND_COMMON_H
 
@@ -20,12 +16,21 @@
 
 #include "../../VEX/pub/libvex_ir.h"
 
-#define PRINT(...) { VG_(printf)(__VA_ARGS__); }
-
+#define PRINT(level, ...) { if (verbosity_level <= (level)) { VG_(printf)(__VA_ARGS__); } }
 #define INLINE    inline __attribute__((always_inline))
+
+#define WAIT() { char buf[16]; VG_(read)(0, buf, 1);  }
 #define NOINLINE __attribute__ ((noinline))
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+#define LOG_DEBUG 0
+#define LOG_INFO 1
+#define LOG_WARNING 2
+#define LOG_ERROR 3
+
+
+extern int verbosity_level;
 
 #endif //VALGRIND_COMMON_H

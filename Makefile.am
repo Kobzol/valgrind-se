@@ -12,6 +12,7 @@ noinst_PROGRAMS += se-@VGCONF_ARCH_SEC@-@VGCONF_OS@
 endif
 
 SE_SOURCES_COMMON = se_main.c \
+                    src/common.c \
                     src/syscall.c \
                     src/memory.c \
                     src/instrument.c

@@ -36,6 +36,23 @@ static INLINE AuxMapEnt* page_find_in_auxmap(Addr base)
     res = VG_(OSetGen_Lookup)(current_memspace->auxmap, &key);
     return res;
 }
+static AuxMapEnt* page_find_or_alloc_ent_in_auxmap(Addr a)
+{
+    AuxMapEnt *nyu, *res;
+
+    a &= ~(Addr) PAGE_MASK;
+    res = page_find_in_auxmap(a);
+    if (LIKELY(res))
+        return res;
+
+    nyu = (AuxMapEnt*) VG_(OSetGen_AllocNode)(
+            current_memspace->auxmap, sizeof(AuxMapEnt));
+    nyu->base = a;
+    nyu->page = NULL;
+    VG_(OSetGen_Insert)(current_memspace->auxmap, nyu);
+    return nyu;
+}
+
 static INLINE Bool page_is_start(Addr addr)
 {
     return (page_get_start(addr) == addr);
@@ -125,6 +142,62 @@ static INLINE void page_set_va(Page* page, VA* va)
     page->va = va;
     va->ref_count++;
 }
+static void INLINE page_update(Page* page)
+{
+    Addr base = page->base;
+    MemorySpace* ms = current_memspace;
+    for (UInt i = 0; i < ms->page_cache_size; i++)
+    {
+        if (ms->page_cache[i]->base == base)
+        {
+            ms->page_cache[i] = page;
+            break;
+        }
+    }
+    AuxMapEnt *res = page_find_or_alloc_ent_in_auxmap(base);
+    res->page = page;
+}
+static Page* page_clone(Page *page)
+{
+    Page* new_page = page_new(page->base);
+    page->va->ref_count++;
+    new_page->va = page->va;
+    VG_(memcpy)(new_page->page_flags, page->page_flags, sizeof(page->page_flags));
+    return new_page;
+}
+static INLINE Page* page_prepare_for_write_va(Page* page)
+{
+    if (UNLIKELY(page->ref_count >= 2))
+    {
+        page->ref_count--;
+        Page* new_page = page_clone(page);
+        page->va->ref_count--;
+        new_page->va = va_clone(page->va);
+        page_update(new_page);
+        return new_page;
+    }
+
+    if (UNLIKELY(page->va->ref_count >= 2))
+    {
+        page->va->ref_count--;
+        page->va = va_clone(page->va);
+        return page;
+    }
+
+    return page;
+}
+Page* page_prepare_for_write_data(Page *page)
+{
+    if (UNLIKELY(page->ref_count >= 2))
+    {
+        page->ref_count--;
+        Page *new_page = page_clone(page);
+        page_update(new_page);
+        return new_page;
+    }
+
+    return page;
+}
 
 /// memory definedness
 static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
@@ -153,6 +226,7 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
     {
         set_address_range_perms(addr + setLength, remaining, permission);
     }*/
+    Addr origAddr = a;
     VA* va;
     Page *page;
     UWord pg_off;
@@ -174,7 +248,7 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
         lenB = lenT - lenA;
     }
     page = page_find(a);
-    //page = page_prepare_for_write_va(page);
+    page = page_prepare_for_write_va(page);
     va = page->va;
     pg_off = PAGE_OFF(a);
 
@@ -205,7 +279,7 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
 
     tl_assert(lenB < PAGE_SIZE);
     page = page_find(a);
-    //page = page_prepare_for_write_va(page);
+    page = page_prepare_for_write_va(page);
     va = page->va;
     pg_off = 0;
     while (lenB > 0) {
@@ -213,6 +287,8 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
         pg_off++;
         lenB--;
     }
+
+    sanity_check_vabits(origAddr, lenT, perm);
 }
 static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
 {
@@ -221,6 +297,9 @@ static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
     {
         return;
     }
+
+    Addr origAddr = a;
+    SizeT origLen = lenT;
 
     for(;;)
     {
@@ -234,6 +313,7 @@ static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
             page->page_flags[i] = value;
             if (lenT <= VKI_PAGE_SIZE)
             {
+                sanity_check_page_flags(origAddr, origLen, value);
                 return;
             }
             lenT -= VKI_PAGE_SIZE;
@@ -275,6 +355,64 @@ static INLINE void make_mem_readonly(Addr a, SizeT len)
 static INLINE void make_mem_noaccess(Addr a, SizeT len)
 {
     set_address_range_perms(a, len, MEM_NOACCESS);
+}
+
+/// sanity checks
+void sanity_uniform_vabits(char perm)
+{
+    for (int i = 0; i < PAGE_SIZE; i++)
+    {
+        tl_assert(uniform_va[perm]->vabits[i] == perm);
+    }
+}
+void sanity_uniform_vabits_all(void)
+{
+    sanity_uniform_vabits(MEM_NOACCESS);
+    sanity_uniform_vabits(MEM_UNDEFINED);
+    sanity_uniform_vabits(MEM_READONLY);
+    sanity_uniform_vabits(MEM_DEFINED);
+}
+void sanity_check_vabits(Addr a, Int len, char perm)
+{
+    Int remaining = len;
+    Page* page = page_find(a);
+    Int off = page_get_offset(a);
+
+    while (remaining > 0)
+    {
+        for (int i = off; (remaining > 0) && (i < PAGE_SIZE); i++)
+        {
+            remaining--;
+            tl_assert(page->va->vabits[i] == perm);
+        }
+
+        if (remaining > 0)
+        {
+            page = page_find(page_get_start(a) + PAGE_SIZE);
+            off = 0;
+        }
+    }
+}
+void sanity_check_page_flags(Addr a, Int len, char flags)
+{
+    for(;;)
+    {
+        Page *page = page_find(a);
+        UWord pg_off = page_get_offset(a);
+
+        UInt i;
+        for (i = pg_off / VKI_PAGE_SIZE; i < REAL_PAGES_IN_PAGE; i++)
+        {
+            tl_assert(page->page_flags[i] == flags);
+            if (len <= VKI_PAGE_SIZE)
+            {
+                return;
+            }
+            len -= VKI_PAGE_SIZE;
+        }
+        a = page_get_start(a);
+        a += PAGE_SIZE;
+    }
 }
 
 /// memspace
@@ -406,7 +544,7 @@ Addr memspace_alloc(SizeT alloc_size, SizeT allign)
     if (UNLIKELY(new_block.address - \
                 current_memspace->heap_space >= HEAP_MAX_SIZE))
     {
-        PRINT("HEAP ERROR");
+        PRINT(LOG_ERROR, "HEAP ERROR");
         tl_assert(0);
     }
 
@@ -525,7 +663,7 @@ void se_handle_munmap(Addr a, SizeT len)
 }
 void se_handle_mremap(Addr src, Addr dst, SizeT len)
 {
-    PRINT("remap not implemented yet");
+    PRINT(LOG_ERROR, "remap not implemented yet");
     tl_assert(0);
 }
 

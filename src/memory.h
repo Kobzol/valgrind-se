@@ -87,6 +87,12 @@ INLINE Addr page_get_start(Addr addr)
 {
     return (addr & (~PAGE_MASK));
 }
+Page* page_prepare_for_write_data(Page* page);
+
+/// sanity checks
+void sanity_check_vabits(Addr a, Int len, char perm);
+void sanity_check_page_flags(Addr a, Int len, char flags);
+void sanity_uniform_vabits_all(void);
 
 /// mmap
 void se_handle_mmap(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
