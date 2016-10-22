@@ -1,6 +1,6 @@
 #include "memory.h"
 
-static VA* uniform_va[4];
+VA* uniform_va[4];
 
 MemorySpace* current_memspace = NULL;
 
@@ -56,10 +56,6 @@ static AuxMapEnt* page_find_or_alloc_ent_in_auxmap(Addr a)
 static INLINE Bool page_is_start(Addr addr)
 {
     return (page_get_start(addr) == addr);
-}
-static INLINE Addr page_get_offset(Addr addr)
-{
-    return ((addr) & PAGE_MASK);
 }
 static Page* page_new(Addr addr)
 {
@@ -142,7 +138,7 @@ static INLINE void page_set_va(Page* page, VA* va)
     page->va = va;
     va->ref_count++;
 }
-static void INLINE page_update(Page* page)
+static INLINE void page_update(Page* page)
 {
     Addr base = page->base;
     MemorySpace* ms = current_memspace;
@@ -165,7 +161,7 @@ static Page* page_clone(Page *page)
     VG_(memcpy)(new_page->page_flags, page->page_flags, sizeof(page->page_flags));
     return new_page;
 }
-static INLINE Page* page_prepare_for_write_va(Page* page)
+Page* page_prepare_for_write_va(Page* page)
 {
     if (UNLIKELY(page->ref_count >= 2))
     {
@@ -198,35 +194,49 @@ Page* page_prepare_for_write_data(Page *page)
 
     return page;
 }
+UChar* page_get_va(Addr a, Int length, Int* loadedSize)
+{
+    Page* page = page_find(a);
+    Int offset = page_get_offset(a);
+
+    tl_assert(offset + length <= PAGE_SIZE);
+    *loadedSize = length;
+    return page->va->vabits + offset;
+}
 
 /// memory definedness
 static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
 {
     // TODO: prepare for VA write?
 
-    /*UWord start = page_get_start(addr);
+    UWord start = page_get_start(a);
     UWord nextPage = start + PAGE_SIZE;
-    UWord distanceToNext = nextPage - addr;
-    UWord setLength = MIN(distanceToNext, length);
-    Page* page = page_find(addr);
+    UWord distanceToNext = nextPage - a;
+    UWord setLength = MIN(distanceToNext, lenT);
+    Page* page = page_find(a);
 
     if (setLength == PAGE_SIZE)
     {
-        page_set_va(page, uniform_va[permission]);
+        page_set_va(page, uniform_va[perm]);
     }
     else
     {
-        Addr offset = page_get_offset(addr);
+        page = page_prepare_for_write_va(page);
+        Addr offset = page_get_offset(a);
         VA* va = page->va;
-        VG_(memset)(va->vabits + offset, permission, setLength);
+        VG_(memset)(va->vabits + offset, perm, setLength);
     }
 
-    UWord remaining = length - setLength;
+    UWord remaining = lenT - setLength;
     if (remaining > 0)
     {
-        set_address_range_perms(addr + setLength, remaining, permission);
-    }*/
-    Addr origAddr = a;
+        set_address_range_perms(a + setLength, remaining, perm);
+    }
+    else
+    {
+        sanity_check_vabits(a, lenT, perm);
+    }
+    /*Addr origAddr = a;
     VA* va;
     Page *page;
     UWord pg_off;
@@ -258,11 +268,6 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
         lenA--;
     }
 
-    /*len = lenA / VKI_PAGE_SIZE;
-    UInt i = PAGE_OFF(a) / PAGE_SIZE;
-
-    while (len >)*/
-
     a = page_get_start (a) + PAGE_SIZE;
 
     part2:
@@ -288,7 +293,7 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
         lenB--;
     }
 
-    sanity_check_vabits(origAddr, lenT, perm);
+    sanity_check_vabits(origAddr, lenT, perm);*/
 }
 static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
 {
@@ -358,7 +363,7 @@ static INLINE void make_mem_noaccess(Addr a, SizeT len)
 }
 
 /// sanity checks
-void sanity_uniform_vabits(char perm)
+static void sanity_uniform_vabits(char perm)
 {
     for (int i = 0; i < PAGE_SIZE; i++)
     {
@@ -697,6 +702,7 @@ void* se_handle_malloc(ThreadId tid, SizeT n)
     Addr addr = memspace_alloc(n, 1);
     VG_(memset)((void*) addr, 0, n);
     make_mem_undefined(addr, n);
+    PRINT(LOG_DEBUG, "SE: malloc returning %p of length %d\n", addr, n);
     return (void*) addr;
 }
 void* se_handle_memalign(ThreadId tid, SizeT alignB, SizeT n)

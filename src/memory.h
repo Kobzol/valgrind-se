@@ -32,6 +32,9 @@
 #define PAGEFLAG_EXECUTE  8 // 1000
 #define PAGEFLAG_RW (PAGEFLAG_MAPPED | PAGEFLAG_READ | PAGEFLAG_WRITE)
 
+#define REG_REAL 0
+#define REG_SHADOW 1
+
 /// Structs
 typedef struct {
     Int ref_count;
@@ -78,6 +81,7 @@ extern MemorySpace* current_memspace;
 void memspace_init(void);
 
 /// VA
+extern VA* uniform_va[4];
 VA* va_clone(VA* va);
 
 /// Page
@@ -87,7 +91,13 @@ INLINE Addr page_get_start(Addr addr)
 {
     return (addr & (~PAGE_MASK));
 }
+INLINE Addr page_get_offset(Addr addr)
+{
+    return ((addr) & PAGE_MASK);
+}
 Page* page_prepare_for_write_data(Page* page);
+Page* page_prepare_for_write_va(Page* page);
+UChar* page_get_va(Addr a, Int length, Int* loadedSize);
 
 /// sanity checks
 void sanity_check_vabits(Addr a, Int len, char perm);

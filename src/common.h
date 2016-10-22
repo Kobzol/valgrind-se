@@ -11,6 +11,7 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_libcbase.h"
 #include "pub_tool_libcassert.h"
+#include "pub_tool_threadstate.h"
 #include "../../coregrind/pub_core_clientstate.h"
 #include "../../coregrind/pub_core_mallocfree.h"
 
