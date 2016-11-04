@@ -43,6 +43,7 @@ static UChar* load_expr_gen(Int exprType, Addr a, SizeT size, HWord i1, Int* loa
     else if (exprType == Iex_RdTmp)
     {
         // TODO
+        PRINT(LOG_DEBUG, "Iex_RdTmp\n");
     }
     else if (exprType == Iex_Load)
     {

@@ -56,6 +56,7 @@
 #include "src/syscall.h"
 #include "src/memory.h"
 #include "src/instrument.h"
+#include "src/net.h"
 
 static
 Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
@@ -147,6 +148,14 @@ static void se_pre_clo_init(void)
     VG_(needs_client_requests) (se_handle_client_request);
 
     memspace_init();
+
+    Socket s = net_connect("127.0.0.1:5555");
+    char data[6];
+    net_read(s, data, 5);
+    net_write(s, data);
+    data[5] = 0;
+
+    PRINT(LOG_DEBUG, "%s\n", data);
 }
 
 VG_DETERMINE_INTERFACE_VERSION(se_pre_clo_init);

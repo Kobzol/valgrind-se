@@ -10,9 +10,11 @@
 #include "pub_tool_machine.h"
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_libcbase.h"
+#include "pub_tool_libcfile.h"
 #include "pub_tool_libcassert.h"
 #include "pub_tool_threadstate.h"
 #include "../../coregrind/pub_core_clientstate.h"
+#include "../../coregrind/pub_core_libcfile.h"
 #include "../../coregrind/pub_core_mallocfree.h"
 
 #include "../../VEX/pub/libvex_ir.h"
