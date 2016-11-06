@@ -2,6 +2,7 @@
 #define VALGRIND_MEMORY_H
 
 #include "common.h"
+#include "pub_tool_stacktrace.h"
 
 /// Defines
 #define MEMSPACE_PAGE_CACHE_SIZE 12
@@ -27,8 +28,8 @@
 
 #define PAGEFLAG_UNMAPPED 0 // 0000
 #define PAGEFLAG_MAPPED   1 // 0001
-#define PAGEFLAG_READ     2 // 0100
-#define PAGEFLAG_WRITE    4 // 0010
+#define PAGEFLAG_READ     2 // 0010
+#define PAGEFLAG_WRITE    4 // 0100
 #define PAGEFLAG_EXECUTE  8 // 1000
 #define PAGEFLAG_RW (PAGEFLAG_MAPPED | PAGEFLAG_READ | PAGEFLAG_WRITE)
 
@@ -53,6 +54,7 @@ typedef struct {
     Addr    base;
     Page* page;
 } AuxMapEnt;
+
 typedef struct {
     Int page_cache_size;
     Page* page_cache[MEMSPACE_PAGE_CACHE_SIZE];
@@ -67,6 +69,7 @@ typedef enum {
     BLOCK_USED,
     BLOCK_END
 } AllocationBlockType;
+
 typedef struct {
     Addr address;
     AllocationBlockType type;
@@ -77,14 +80,19 @@ typedef struct {
 extern MemorySpace* current_memspace;
 
 
-/// Functions
+/// init
 void memspace_init(void);
+
+/// dump
+void dump_alloc_blocks(XArray* blocks);
+void dump_vabits(VA* va, SizeT start, SizeT count);
+void dump_stacktrace(void);
 
 /// VA
 extern VA* uniform_va[4];
 VA* va_clone(VA* va);
 
-/// Page
+/// page
 Page* page_find(Addr addr);
 Page* page_find_or_null(Addr addr);
 INLINE Addr page_get_start(Addr addr)
@@ -98,6 +106,9 @@ INLINE Addr page_get_offset(Addr addr)
 Page* page_prepare_for_write_data(Page* page);
 Page* page_prepare_for_write_va(Page* page);
 UChar* page_get_va(Addr a, Int length, Int* loadedSize);
+Page* page_new_empty(Addr addr);
+void page_dispose(Page* page);
+Int are_all_flags_rw(Page* page);
 
 /// sanity checks
 void sanity_check_vabits(Addr a, Int len, char perm);

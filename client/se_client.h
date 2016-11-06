@@ -8,17 +8,17 @@ extern "C" {
 
 typedef unsigned long SEArgType; // Has to be the same type as UWord
 
-typedef
-enum {
+typedef enum {
     VG_USERREQ__SE_CALL = VG_USERREQ_TOOL_BASE('S','E')
 } Vg_SEClientRequest;
 
-typedef
-enum {
-    VG_USERREQ__SE_MAKE_SYMBOLIC = 1
+typedef enum {
+    VG_USERREQ__SE_SAVE_STATE = 1,
+    VG_USERREQ__SE_RESTORE_STATE = 2
 } Vg_SERequestType;
 
-void se_make_symbolic(void* mem, int size);
+void se_save_state(void);
+void se_restore_state(void);
 
 #ifdef __cplusplus
 }

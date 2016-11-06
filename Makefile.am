@@ -16,7 +16,8 @@ SE_SOURCES_COMMON = se_main.c \
                     src/syscall.c \
                     src/memory.c \
                     src/instrument.c \
-                    src/net.c
+                    src/net.c \
+                    src/state.c
 
 se_@VGCONF_ARCH_PRI@_@VGCONF_OS@_SOURCES      = \
 	$(SE_SOURCES_COMMON)

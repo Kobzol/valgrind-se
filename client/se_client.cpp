@@ -5,10 +5,13 @@
 
 void se_call(Vg_SERequestType type, SEArgType* args, SEArgType count);
 
-void se_make_symbolic(void* mem, int size)
+void se_save_state(void)
 {
-    SEArgType args[2] = { (SEArgType) mem, size };
-    se_call(VG_USERREQ__SE_MAKE_SYMBOLIC, args, 2);
+    se_call(VG_USERREQ__SE_SAVE_STATE, NULL, 0);
+}
+void se_restore_state(void)
+{
+    se_call(VG_USERREQ__SE_RESTORE_STATE, NULL, 0);
 }
 
 void se_call(Vg_SERequestType type, SEArgType *args, SEArgType count)

@@ -28,10 +28,8 @@ void syscall_handle_post(ThreadId tid, UInt syscallno,
 
 void handle_read(ThreadId tid, UWord* args, UInt nArgs, SysRes res)
 {
-    int fd = args[0];
+    /*int fd = args[0];
     void* buf = (void*) args[1];
     int count = args[2];
-    int result = res._val;
-
-    //PRINT(LOG_DEBUG, "Read: fd=%d, addr=%p, count=%d, result=%d\n", fd, buf, count, result);
+    int result = res._val;*/
 }

@@ -57,27 +57,32 @@
 #include "src/memory.h"
 #include "src/instrument.h"
 #include "src/net.h"
+#include "src/state.h"
 
-static
-Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
+static State* state = NULL;
+static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
 {
     if (!VG_IS_TOOL_USERREQ('S','E', args[0]))
     {
         return False;
     }
 
-    /*SEArgType* requestArgs = (SEArgType*) args[2];
-    SEArgType argsSize = args[3];
+    SEArgType* requestArgs = (SEArgType*) args[2];
+    SEArgType argsSize = (SEArgType) args[3];
 
     switch (args[1])
     {
-        case VG_USERREQ__SE_MAKE_SYMBOLIC:
+        case VG_USERREQ__SE_SAVE_STATE:
         {
-            void *addr = (void *) requestArgs[0];
-            SEArgType size = requestArgs[1];
+            state = state_save_current();
+            break;
+        }
+        case VG_USERREQ__SE_RESTORE_STATE:
+        {
+            if (state == NULL) break;
 
-            // TODO: make memory symbolic
-
+            state_restore(state);
+            state = NULL;
             break;
         }
         default:
@@ -85,7 +90,7 @@ Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
             tl_assert(False);
             break;
         }
-    }*/
+    }
 
     *ret = 0;
     return True;
@@ -101,7 +106,7 @@ static void se_fini(Int exitcode)
 
 static void se_pre_clo_init(void)
 {
-    VG_(details_name)            ("Segrind 3 test");
+    VG_(details_name)            ("Segrind test");
     VG_(details_version)         (NULL);
     VG_(details_description)     ("the symbolic Valgrind tool");
     VG_(details_copyright_author)(
@@ -110,7 +115,7 @@ static void se_pre_clo_init(void)
 
     VG_(details_avg_translation_sizeB) (275);
 
-    VG_(needs_syscall_wrapper)(syscall_handle_pre, syscall_handle_post);
+    //VG_(needs_syscall_wrapper)(syscall_handle_pre, syscall_handle_post);
 
     VG_(needs_malloc_replacement)  (se_handle_malloc,
                                     se_handle_malloc, //MC_(__builtin_new),
@@ -148,14 +153,6 @@ static void se_pre_clo_init(void)
     VG_(needs_client_requests) (se_handle_client_request);
 
     memspace_init();
-
-    Socket s = net_connect("127.0.0.1:5555");
-    char data[6];
-    net_read(s, data, 5);
-    net_write(s, data);
-    data[5] = 0;
-
-    PRINT(LOG_DEBUG, "%s\n", data);
 }
 
 VG_DETERMINE_INTERFACE_VERSION(se_pre_clo_init);

@@ -20,9 +20,9 @@ Socket net_connect(const HChar *server_addr)
 
 Int net_read(Socket socket, HChar* buffer, Int size)
 {
-    VG_(read)(socket, buffer, size);
+    return VG_(read)(socket, buffer, size);
 }
 Int net_write(Socket socket, HChar* buffer)
 {
-    VG_(write)(socket, buffer, VG_(strlen)(buffer));
+    return VG_(write)(socket, buffer, VG_(strlen)(buffer));
 }

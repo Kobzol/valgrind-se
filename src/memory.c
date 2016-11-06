@@ -4,6 +4,39 @@ VA* uniform_va[4];
 
 MemorySpace* current_memspace = NULL;
 
+/// dump
+void dump_alloc_blocks(XArray* blocks)
+{
+    const char* block_types[3] = {
+        "free",
+        "used",
+        "end"
+    };
+
+    Int size = VG_(sizeXA)(blocks);
+    for (int i = 0; i < size; i++)
+    {
+        AllocationBlock* block = VG_(indexXA)(blocks, i);
+        PRINT(LOG_DEBUG, "Alloc block: %p, size %lu, %s\n",
+              (void*) block->address,
+              block->requested_size,
+              block_types[block->type]
+        );
+    }
+}
+void dump_vabits(VA* va, SizeT start, SizeT count)
+{
+    for (; start < count; start++)
+    {
+        PRINT(LOG_DEBUG, "%d", (int) va->vabits[start]);
+    }
+    PRINT(LOG_DEBUG, "\n");
+}
+void dump_stacktrace(void)
+{
+    VG_(get_and_pp_StackTrace)(VG_(get_running_tid)(), 10);
+}
+
 /// VA management
 static VA* va_new(void)
 {
@@ -27,7 +60,7 @@ VA* va_clone(VA* va)
     return new_va;
 }
 
-/// Page management
+/// page management
 static INLINE AuxMapEnt* page_find_in_auxmap(Addr base)
 {
     AuxMapEnt  key;
@@ -52,6 +85,18 @@ static AuxMapEnt* page_find_or_alloc_ent_in_auxmap(Addr a)
     VG_(OSetGen_Insert)(current_memspace->auxmap, nyu);
     return nyu;
 }
+Int are_all_flags_rw(Page *page)
+{
+    UWord i;
+    for (i = 1; i < REAL_PAGES_IN_PAGE; i++)
+    {
+        if (page->page_flags[i] != PAGEFLAG_RW)
+        {
+            return False;
+        }
+    }
+    return True;
+}
 
 static INLINE Bool page_is_start(Addr addr)
 {
@@ -66,7 +111,7 @@ static Page* page_new(Addr addr)
     page->va = NULL;
     return page;
 }
-static Page* page_new_empty(Addr addr)
+Page* page_new_empty(Addr addr)
 {
     Page *page = page_new(addr);
     page->va = uniform_va[MEM_NOACCESS];
@@ -133,7 +178,7 @@ Page* page_find_or_null(Addr addr)
 }
 static INLINE void page_set_va(Page* page, VA* va)
 {
-    //page = page_prepare_for_write_data(page); TODO
+    page = page_prepare_for_write_data(page);
     va_dispose(page->va);
     page->va = va;
     va->ref_count++;
@@ -203,13 +248,25 @@ UChar* page_get_va(Addr a, Int length, Int* loadedSize)
     *loadedSize = length;
     return page->va->vabits + offset;
 }
+void page_dispose(Page *page)
+{
+    page->ref_count--;
+    if (page->ref_count <= 0)
+    {
+        tl_assert(page->ref_count == 0);
+        if (page->data)
+        {
+            VG_(free)(page->data);
+        }
+        va_dispose(page->va);
+        VG_(free)(page);
+    }
+}
 
 /// memory definedness
 static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
 {
-    // TODO: prepare for VA write?
-
-    UWord start = page_get_start(a);
+    /*UWord start = page_get_start(a);
     UWord nextPage = start + PAGE_SIZE;
     UWord distanceToNext = nextPage - a;
     UWord setLength = MIN(distanceToNext, lenT);
@@ -235,8 +292,8 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
     else
     {
         sanity_check_vabits(a, lenT, perm);
-    }
-    /*Addr origAddr = a;
+    }*/
+    Addr origAddr = a;
     VA* va;
     Page *page;
     UWord pg_off;
@@ -293,7 +350,7 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
         lenB--;
     }
 
-    sanity_check_vabits(origAddr, lenT, perm);*/
+    sanity_check_vabits(origAddr, lenT, perm);
 }
 static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
 {
@@ -367,7 +424,7 @@ static void sanity_uniform_vabits(char perm)
 {
     for (int i = 0; i < PAGE_SIZE; i++)
     {
-        tl_assert(uniform_va[perm]->vabits[i] == perm);
+        tl_assert(uniform_va[(int)perm]->vabits[i] == perm);
     }
 }
 void sanity_uniform_vabits_all(void)
@@ -437,7 +494,7 @@ void memspace_init(void)
     SizeT heap_max_size = HEAP_MAX_SIZE;
     Addr heap_space = (Addr) VG_(arena_memalign)
             (VG_AR_CORE, "se.heap", PAGE_SIZE, heap_max_size);
-    tl_assert(heap_space % PAGE_SIZE == 0); // Heap is propertly aligned
+    tl_assert(heap_space % PAGE_SIZE == 0); // Heap is properly aligned
     tl_assert(heap_space != 0);
 
     // initialize uniform VA memory blocks
@@ -477,6 +534,7 @@ Addr memspace_alloc(SizeT alloc_size, SizeT allign)
     // align size
     alloc_size = (((alloc_size - 1) / sizeof(void*)) + 1) * sizeof(void*);
 
+    // find next empty block
     XArray *a = current_memspace->allocation_blocks;
     Word i = 0;
     AllocationBlock *block = VG_(indexXA)(a, 0);
@@ -593,6 +651,8 @@ SizeT memspace_free(Addr address)
     block->type = BLOCK_FREE;
     next = VG_(indexXA)(a, i + 1);
     SizeT size = next->address - address;
+
+    // TODO: change address/size of the freed block?
     if (next->type == BLOCK_FREE)
     {
         VG_(removeIndexXA)(a, i + 1);
@@ -624,6 +684,8 @@ void se_handle_mmap(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
     {
         make_mem_noaccess(a, len);
     }
+
+    set_address_range_page_flags(a, len, make_page_flags(rr, ww, xx));
 }
 void se_handle_mstartup(Addr a, SizeT len, Bool rr, Bool ww, Bool xx,
                               ULong di_handle)
@@ -702,7 +764,9 @@ void* se_handle_malloc(ThreadId tid, SizeT n)
     Addr addr = memspace_alloc(n, 1);
     VG_(memset)((void*) addr, 0, n);
     make_mem_undefined(addr, n);
-    PRINT(LOG_DEBUG, "SE: malloc returning %p of length %d\n", addr, n);
+
+    PRINT(LOG_DEBUG, "Malloc %p, size %lu\n", (void*) addr, n);
+
     return (void*) addr;
 }
 void* se_handle_memalign(ThreadId tid, SizeT alignB, SizeT n)
@@ -732,6 +796,7 @@ void* se_handle_realloc(ThreadId tid, void* p_old, SizeT new_szB)
         return (void*) addr;
     }
     SizeT s = memspace_block_size((Addr) p_old);
+    tl_assert(s <= new_szB && "realloc size must be greater than the old size");
     VG_(memcpy)((void*) addr, p_old, s);
     if (new_szB > s)
     {
