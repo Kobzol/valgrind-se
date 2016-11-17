@@ -57,6 +57,7 @@ VA* va_clone(VA* va)
 {
     VA* new_va = va_new();
     VG_(memcpy)(new_va->vabits, va->vabits, sizeof(va->vabits));
+    VG_(memcpy)(new_va->sbits, va->sbits, sizeof(va->sbits));
     return new_va;
 }
 
@@ -298,6 +299,12 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
     Page *page;
     UWord pg_off;
 
+    Bool resetSymBits = False;
+    if (perm == MEM_NOACCESS || perm == MEM_UNDEFINED)
+    {
+        resetSymBits = True;
+    }
+
     UWord aNext = page_get_start(a) + PAGE_SIZE;
     UWord len_to_next_secmap = aNext - a;
     UWord lenA, lenB;
@@ -319,10 +326,24 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
     va = page->va;
     pg_off = PAGE_OFF(a);
 
-    while (lenA > 0) {
-        va->vabits[pg_off] = perm;
-        pg_off++;
-        lenA--;
+    if (resetSymBits)
+    {
+        while (lenA > 0)
+        {
+            va->vabits[pg_off] = perm;
+            va->sbits[pg_off] = SYM_CONCRETE;
+            pg_off++;
+            lenA--;
+        }
+    }
+    else
+    {
+        while (lenA > 0)
+        {
+            va->vabits[pg_off] = perm;
+            pg_off++;
+            lenA--;
+        }
     }
 
     a = page_get_start (a) + PAGE_SIZE;
@@ -344,10 +365,24 @@ static void set_address_range_perms(Addr a, SizeT lenT, UChar perm)
     page = page_prepare_for_write_va(page);
     va = page->va;
     pg_off = 0;
-    while (lenB > 0) {
-        va->vabits[pg_off] = perm;
-        pg_off++;
-        lenB--;
+    if (resetSymBits)
+    {
+        while (lenB > 0)
+        {
+            va->vabits[pg_off] = perm;
+            va->sbits[pg_off] = SYM_CONCRETE;
+            pg_off++;
+            lenB--;
+        }
+    }
+    else
+    {
+        while (lenB > 0)
+        {
+            va->vabits[pg_off] = perm;
+            pg_off++;
+            lenB--;
+        }
     }
 
     sanity_check_vabits(origAddr, lenT, perm);
@@ -382,6 +417,25 @@ static void set_address_range_page_flags(Addr a, SizeT lenT, UChar value)
         }
         a = page_get_start(a);
         a += PAGE_SIZE;
+    }
+}
+void set_address_range_sym(Addr a, SizeT length, UChar value)
+{
+    UWord start = page_get_start(a);
+    UWord nextPage = start + PAGE_SIZE;
+    UWord distanceToNext = nextPage - a;
+    UWord setLength = MIN(distanceToNext, length);
+    Page* page = page_find(a);
+
+    page = page_prepare_for_write_va(page);
+    Addr offset = page_get_offset(a);
+    VA* va = page->va;
+    VG_(memset)(va->sbits + offset, value, setLength);
+
+    UWord remaining = length - setLength;
+    if (remaining > 0)
+    {
+        set_address_range_perms(a + setLength, remaining, value);
     }
 }
 
@@ -500,12 +554,19 @@ void memspace_init(void)
     // initialize uniform VA memory blocks
     uniform_va[MEM_NOACCESS] = va_new();
     VG_(memset)(uniform_va[MEM_NOACCESS]->vabits, MEM_NOACCESS, VA_CHUNKS);
+    VG_(memset)(uniform_va[MEM_NOACCESS]->sbits, SYM_CONCRETE, VA_CHUNKS);
+
     uniform_va[MEM_UNDEFINED] = va_new();
     VG_(memset)(uniform_va[MEM_UNDEFINED]->vabits, MEM_UNDEFINED, VA_CHUNKS);
+    VG_(memset)(uniform_va[MEM_UNDEFINED]->sbits, SYM_CONCRETE, VA_CHUNKS);
+
     uniform_va[MEM_READONLY] = va_new();
     VG_(memset)(uniform_va[MEM_READONLY]->vabits, MEM_READONLY, VA_CHUNKS);
+    VG_(memset)(uniform_va[MEM_READONLY]->sbits, SYM_CONCRETE, VA_CHUNKS);
+
     uniform_va[MEM_DEFINED] = va_new();
     VG_(memset)(uniform_va[MEM_DEFINED]->vabits, MEM_DEFINED, VA_CHUNKS);
+    VG_(memset)(uniform_va[MEM_DEFINED]->sbits, SYM_CONCRETE, VA_CHUNKS);
 
     // initialize memspace and allocation blocks
     MemorySpace *ms = VG_(malloc)("se.memspace", sizeof(MemorySpace));

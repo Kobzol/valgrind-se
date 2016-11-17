@@ -36,10 +36,14 @@
 #define REG_REAL 0
 #define REG_SHADOW 1
 
+#define SYM_CONCRETE 0
+#define SYM_SYMBOLIC 1
+
 /// Structs
 typedef struct {
     Int ref_count;
     UChar vabits[VA_CHUNKS];
+    UChar sbits[VA_CHUNKS];
 } VA;
 
 typedef struct {
@@ -109,6 +113,9 @@ UChar* page_get_va(Addr a, Int length, Int* loadedSize);
 Page* page_new_empty(Addr addr);
 void page_dispose(Page* page);
 Int are_all_flags_rw(Page* page);
+
+// sym
+void set_address_range_sym(Addr a, SizeT length, UChar value);
 
 /// sanity checks
 void sanity_check_vabits(Addr a, Int len, char perm);

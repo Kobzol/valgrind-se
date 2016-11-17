@@ -178,6 +178,22 @@ IRSB* se_instrument(VgCallbackClosure* closure,
         IRStmt* st = sb_in->stmts[i];
         switch (st->tag)
         {
+            /*case Ist_Exit:
+            {
+                if (st->Ist.Exit.jk == Ijk_Boring)
+                {
+                    SizeT target = util_get_const(st->Ist.Exit.dst);
+                    IRExpr* guard = st->Ist.Exit.guard;
+                    IRType type = typeOfIRExpr(tyenv, guard);
+
+                    event_add(sb_out,
+                        "handle_jump",
+                    );
+                }
+
+                addStmtToIRSB(sb_out, st);
+                break;
+            }*/
             case Ist_WrTmp:
             {
                 IRExpr* data = st->Ist.WrTmp.data;

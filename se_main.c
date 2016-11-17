@@ -85,6 +85,14 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
             state = NULL;
             break;
         }
+        case VG_USERREQ__SE_MAKE_SYMBOLIC:
+        {
+            Addr a = (Addr) requestArgs[0];
+            SizeT size = (Addr) requestArgs[1];
+
+            set_address_range_sym(a, size, SYM_SYMBOLIC);
+            break;
+        }
         default:
         {
             tl_assert(False);
@@ -153,6 +161,7 @@ static void se_pre_clo_init(void)
     VG_(needs_client_requests) (se_handle_client_request);
 
     memspace_init();
+    net_init("127.0.0.1:5555");
 }
 
 VG_DETERMINE_INTERFACE_VERSION(se_pre_clo_init);

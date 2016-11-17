@@ -5,9 +5,11 @@
 
 typedef Int Socket;
 
+Socket conn;
+
+void net_init(const HChar* server_addr);
 Socket net_connect(const HChar* server_addr);
 
-Int net_read(Socket socket, HChar* buffer, Int size);
-Int net_write(Socket socket, HChar* buffer);
+const char* net_msg(Socket socket, const HChar* message);
 
 #endif //VALGRIND_NET_H
