@@ -439,9 +439,9 @@ void set_address_range_sym(Addr a, SizeT length, UChar value)
     }
 }
 
-static int make_page_flags(Bool rr, Bool ww, Bool xx)
+static UChar make_page_flags(Bool rr, Bool ww, Bool xx)
 {
-    int flags = PAGEFLAG_MAPPED;
+    UChar flags = PAGEFLAG_MAPPED;
     if (rr)
     {
         flags |= PAGEFLAG_READ;
@@ -572,6 +572,7 @@ void memspace_init(void)
     MemorySpace *ms = VG_(malloc)("se.memspace", sizeof(MemorySpace));
     VG_(memset)(ms, 0, sizeof(MemorySpace));
     ms->auxmap = VG_(OSetGen_Create)(offsetof(AuxMapEnt, base), NULL, VG_(malloc), "se.auxmap", VG_(free));
+    ms->symmap = VG_(OSetGen_Create)(offsetof(AuxMapEnt, base), NULL, VG_(malloc), "se.symmap", VG_(free));
     ms->heap_space = heap_space;
     ms->heap_space_end = heap_space + heap_max_size;
     ms->allocation_blocks = VG_(newXA) (VG_(malloc), "se.allocations", VG_(free), sizeof(AllocationBlock));

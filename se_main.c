@@ -31,33 +31,17 @@
 #include "pub_tool_basics.h"
 #include "pub_tool_tooliface.h"
 #include "pub_tool_libcassert.h"
-#include "pub_tool_oset.h"
 #include "pub_tool_libcprint.h"
-#include "pub_tool_debuginfo.h"
-#include "pub_tool_libcbase.h"
-#include "pub_tool_options.h"
-#include "pub_tool_basics.h"
-#include "pub_tool_threadstate.h"
-#include "pub_tool_mallocfree.h"
-#include "pub_tool_hashtable.h"
-#include "pub_tool_xarray.h"
-#include "pub_tool_debuginfo.h"
-#include "pub_tool_stacktrace.h"
-#include "pub_tool_replacemalloc.h"
-#include "pub_tool_transtab.h"
-#include "pub_tool_machine.h"
-#include "pub_tool_vki.h"
 #include "valgrind.h"
 
 #include "../VEX/pub/libvex_ir.h"
 
 #include "client/se_client.h"
-#include "src/common.h"
-#include "src/syscall.h"
 #include "src/memory.h"
 #include "src/instrument.h"
 #include "src/net.h"
 #include "src/state.h"
+#include "src/symbolic.h"
 
 static State* state = NULL;
 static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
@@ -96,7 +80,9 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
             VG_(sprintf)(buffer, "%s 0 %lu", MSG_CREATE_CONSTRAINT, size);
 
             NetMessage msg = net_msg(conn, buffer);
+            tl_assert(msg.ok);
 
+            sym_insert(a, msg.arg1);
 
             break;
         }

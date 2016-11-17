@@ -39,4 +39,4 @@ class SymManager(object):
         size = int(msg.args[1])
         id = len(self.symmap[state])
         self.symmap[state].append(Constraint(id, size))
-        return True, []
+        return True, [id]

@@ -7,6 +7,8 @@
 #include "../../coregrind/pub_core_aspacemgr.h"
 #include "../../coregrind/pub_core_threadstate.h"
 
+// TODO: copy symmap and sbits
+
 extern SysRes ML_(am_do_munmap_NO_NOTIFY)(Addr start, SizeT length);
 
 typedef struct {

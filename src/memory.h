@@ -63,6 +63,7 @@ typedef struct {
     Int page_cache_size;
     Page* page_cache[MEMSPACE_PAGE_CACHE_SIZE];
     OSet* auxmap;
+    OSet* symmap;
     Addr heap_space;
     Addr heap_space_end;
     XArray* allocation_blocks;
