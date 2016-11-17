@@ -91,6 +91,13 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
             SizeT size = (Addr) requestArgs[1];
 
             set_address_range_sym(a, size, SYM_SYMBOLIC);
+
+            char buffer[512];
+            VG_(sprintf)(buffer, "%s 0 %lu", MSG_CREATE_CONSTRAINT, size);
+
+            NetMessage msg = net_msg(conn, buffer);
+
+
             break;
         }
         default:

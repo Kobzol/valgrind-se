@@ -45,6 +45,21 @@ static Int net_writeline(Socket socket, const HChar* buffer)
     return size;
 }
 
+static NetMessage parse_msg(HChar* message)
+{
+    NetMessage msg;
+    msg.ok = message[0] == '1';
+    msg.msg = (const char*) message;
+
+    Int argCount = message[2];
+    Int argStart = 4;
+
+    char* argStr = VG_(strtok)(message + argStart, " ");
+    msg.arg1 = VG_(strtoll10)(argStr, NULL);
+
+    return msg;
+}
+
 void net_init(const HChar* server_addr)
 {
     conn = net_connect(server_addr);
@@ -67,14 +82,18 @@ Socket net_connect(const HChar* server_addr)
     return s;
 }
 
-const char* net_msg(Socket socket, const HChar* message)
+NetMessage net_msg(Socket socket, const HChar* message)
 {
     net_writeline(socket, message);
     SizeT size = net_readline(socket);
 
     if (size > 0)
     {
-        return responseBuffer;
+        return parse_msg(responseBuffer);
     }
-    else return NULL;
+    else
+    {
+        NetMessage result = { .ok = False};
+        return result;
+    }
 }
