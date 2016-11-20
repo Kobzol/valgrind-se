@@ -28,7 +28,7 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-#include "pub_tool_basics.h"
+#include "pub_tool_options.h"
 #include "pub_tool_tooliface.h"
 #include "pub_tool_libcassert.h"
 #include "pub_tool_libcprint.h"
@@ -42,6 +42,7 @@
 #include "src/net.h"
 #include "src/state.h"
 #include "src/symbolic.h"
+#include "src/expr.h"
 
 static State* state = NULL;
 static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
@@ -97,12 +98,38 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
     return True;
 }
 
-static void se_post_clo_init(void)
+static void se_fini(Int exitcode)
 {
 }
 
-static void se_fini(Int exitcode)
+/// cmd options
+static Bool connect_to_server = False;
+
+static Bool se_process_cmd_line_option(const HChar* arg)
 {
+    if (VG_BOOL_CLO(arg, "--connect", connect_to_server))
+    {
+        return True;
+    }
+
+    return False;
+}
+
+static void se_print_usage(void)
+{
+}
+
+static void se_print_debug_usage(void)
+{
+
+}
+
+static void se_post_clo_init(void)
+{
+    if (connect_to_server)
+    {
+        net_init("127.0.0.1:5555");
+    }
 }
 
 static void se_pre_clo_init(void)
@@ -115,6 +142,10 @@ static void se_pre_clo_init(void)
     VG_(details_bug_reports_to)  (VG_BUGS_TO);
 
     VG_(details_avg_translation_sizeB) (275);
+
+    VG_(needs_command_line_options)(se_process_cmd_line_option,
+                                    se_print_usage,
+                                    se_print_debug_usage);
 
     //VG_(needs_syscall_wrapper)(syscall_handle_pre, syscall_handle_post);
 
@@ -154,7 +185,7 @@ static void se_pre_clo_init(void)
     VG_(needs_client_requests) (se_handle_client_request);
 
     memspace_init();
-    net_init("127.0.0.1:5555");
+    expr_init();
 }
 
 VG_DETERMINE_INTERFACE_VERSION(se_pre_clo_init);

@@ -115,6 +115,9 @@ Page* page_new_empty(Addr addr);
 void page_dispose(Page* page);
 Int are_all_flags_rw(Page* page);
 
+// heap
+Bool mem_is_heap(Addr a);
+
 // sym
 void set_address_range_sym(Addr a, SizeT length, UChar value);
 

@@ -1,4 +1,8 @@
 #include "instrument.h"
+#include "expr.h"
+
+#include "../../VEX/pub/libvex_ir.h"
+#include "../../VEX/pub/libvex.h"
 
 static NOINLINE void report_error_write(Addr addr, SizeT size)
 {
@@ -11,51 +15,21 @@ static NOINLINE void report_error_read(Addr addr, SizeT size)
 
 static void event_add(IRSB* sb,
                       const char* name,
-                      Int exprType,
-                      IRExpr* addr,
-                      Int i1,
-                      Int i2,
-                      void (*fn)(Int, Addr, SizeT, HWord))
+                      HWord exprType,
+                      IRExpr* destination,
+                      IRExpr* source,
+                      IRExpr* source2,
+                      HWord size,
+                      void (*fn)(HWord, HWord, HWord, HWord, HWord))
 {
-    IRExpr** args = mkIRExprVec_4(mkIRExpr_HWord(exprType), addr, mkIRExpr_HWord(i1), mkIRExpr_HWord(i2));
+    IRExpr** args = mkIRExprVec_5(mkIRExpr_HWord(exprType), destination, source, source2, mkIRExpr_HWord(size));
     IRDirty* di = unsafeIRDirty_0_N(3, name, VG_(fnptr_to_fnentry)(fn), args);
     addStmtToIRSB(sb, IRStmt_Dirty(di));
 }
 
-static UChar reg_va_buffer[512];
-static UChar* load_expr_get(HWord offset, SizeT size)
+static VG_REGPARM(3) void handle_store(HWord exprType, HWord addr, HWord source, HWord source2, HWord size)
 {
-    VG_(get_shadow_regs_area)(VG_(get_running_tid()), reg_va_buffer, REG_SHADOW, offset, size);
-    return reg_va_buffer;
-}
-static UChar* load_expr_gen(Int exprType, Addr a, SizeT size, HWord i1, Int* loadedSize)
-{
-    *loadedSize = size;
-
-    if (exprType == Iex_Get)
-    {
-        return load_expr_get(i1, size);
-    }
-    else if (exprType == Iex_Const)
-    {
-        return &(uniform_va[MEM_DEFINED]->vabits[0]);
-    }
-    else if (exprType == Iex_RdTmp)
-    {
-        // TODO
-        PRINT(LOG_DEBUG, "Iex_RdTmp\n");
-    }
-    else if (exprType == Iex_Load)
-    {
-        return page_get_va(a, size, loadedSize);
-    }
-
-    return NULL;
-}
-
-static VG_REGPARM(3) void handle_store(Int exprType, Addr addr, SizeT size, HWord i1)
-{
-    Page *page = page_find_or_null(addr);
+    /*Page *page = page_find_or_null(addr);
     if (UNLIKELY(page == NULL))
     {
         report_error_write(addr, size);
@@ -103,10 +77,14 @@ static VG_REGPARM(3) void handle_store(Int exprType, Addr addr, SizeT size, HWor
     if (UNLIKELY(sz != size))
     {
         handle_store(exprType, page_get_start(addr) + PAGE_SIZE, size - sz, i1);
-    }
+    }*/
 }
-static VG_REGPARM(3) void handle_wrtmp(Int exprType, Addr addr, SizeT size, HWord i1)
+static VG_REGPARM(3) void handle_wrtmp(HWord exprType, HWord temp, HWord source, HWord source2, HWord size)
 {
+    /*ExprData data;
+    expr_load(exprType, source, size, &data);
+    expr_store(Ist_WrTmp, temp, size, &data);
+
     Page *page = page_find(addr);
     if (UNLIKELY(page == NULL))
     {
@@ -117,7 +95,7 @@ static VG_REGPARM(3) void handle_wrtmp(Int exprType, Addr addr, SizeT size, HWor
 
     tl_assert(offset + size <= PAGE_SIZE);
 
-    Int loadedSize;
+    Int loadedSize; TODO
     UChar* va = load_expr_gen(exprType, addr, size, i1, &loadedSize);
 
     if (UNLIKELY(!(*va & MEM_READ_MASK)))
@@ -141,15 +119,38 @@ static VG_REGPARM(3) void handle_wrtmp(Int exprType, Addr addr, SizeT size, HWor
                 }
             }
         }
-    }
+    }*/
 }
-/// i1 - reg offset
-static VG_REGPARM(3) void handle_put(Int exprType, Addr addr, SizeT size, HWord i1)
+static VG_REGPARM(3) void handle_put(HWord exprType, HWord destinationOffset, HWord source, HWord source2, HWord size)
 {
-    ThreadId tid = VG_(get_running_tid());
-    Int loadedSize;
-    UChar* va = load_expr_gen(exprType, addr, size, i1, &loadedSize);
-    VG_(set_shadow_regs_area)(tid, REG_SHADOW, i1, loadedSize, va);
+    ExprData data;
+    expr_load(exprType, source, source2, size, &data);
+    expr_store(Ist_Put, destinationOffset, size, &data);
+}
+
+// return tmp number from Iex_RdTmp, constant from Iex_Const, offset from Get or load address from Load
+static IRExpr* get_expr_identifier(IRExpr* data)
+{
+    HWord value = 0;
+
+    if (data->tag == Iex_RdTmp)
+    {
+        value = data->Iex.RdTmp.tmp;
+    }
+    else if (data->tag == Iex_Const)
+    {
+        value = data->Iex.Const.con->Ico.U64;    // TODO
+    }
+    else if (data->tag == Iex_Get)
+    {
+        value = (HWord) data->Iex.Get.offset;
+    }
+    else if (data->tag == Iex_Load)
+    {
+        return data->Iex.Load.addr;
+    }
+
+    return mkIRExpr_HWord(value);
 }
 
 IRSB* se_instrument(VgCallbackClosure* closure,
@@ -198,20 +199,40 @@ IRSB* se_instrument(VgCallbackClosure* closure,
             {
                 IRExpr* data = st->Ist.WrTmp.data;
                 IRType type = typeOfIRExpr(tyenv, data);
-                switch (data->tag)
+                tl_assert(type != Ity_INVALID);
+
+                IRTemp destination = st->Ist.WrTmp.tmp;
+                HWord size = type == Ity_I1 ? 1 : (HWord) sizeofIRType(type);
+                HWord tag = data->tag;
+                IRExpr* source1 = get_expr_identifier(data);
+                IRExpr* source2 = mkIRExpr_HWord(0);
+
+                if (data->tag == Iex_Binop)
                 {
-                    case Iex_Load:
-                        event_add(sb_out,
-                                  "handle_wrtmp",
-                                  Iex_Load,
-                                  data->Iex.Load.addr,
-                                  sizeofIRType(type),
-                                  0, // unused
-                                  handle_wrtmp);
-                        break;
-                    default:
-                        break;
+                    Int tag1 = data->Iex.Binop.arg1->tag;
+                    Int tag2 = data->Iex.Binop.arg2->tag;
+
+                    tl_assert(tag1 == Iex_Const || tag1 == Iex_RdTmp);
+                    tl_assert(tag2 == Iex_Const || tag2 == Iex_RdTmp);
+
+                    Int size1 = sizeofIRType(typeOfIRExpr(tyenv, data->Iex.Binop.arg1));
+                    Int size2 = sizeofIRType(typeOfIRExpr(tyenv, data->Iex.Binop.arg2));
+
+                    size = expr_pack_binop_size(size1, size2);
+                    tag = expr_pack_binop_tag(data->Iex.Binop.op, tag1, tag2);
+                    source1 = get_expr_identifier(data->Iex.Binop.arg1);
+                    source2 = get_expr_identifier(data->Iex.Binop.arg2);
                 }
+
+                event_add(sb_out,
+                          "handle_wrtmp",
+                          tag,
+                          mkIRExpr_HWord(destination),
+                          source1,
+                          source2,
+                          size,
+                          handle_wrtmp);
+
                 addStmtToIRSB(sb_out, st);
                 break;
             }
@@ -220,22 +241,17 @@ IRSB* se_instrument(VgCallbackClosure* closure,
                 IRExpr* data = st->Ist.Put.data;
                 IRType type = typeOfIRExpr(tyenv, data);
                 Int offset = st->Ist.Put.offset;
-                switch (data->tag)
-                {
-                    case Iex_Load:
-                    {
-                        event_add(sb_out,
-                                           "handle_put",
-                                           Iex_Load,
-                                           data->Iex.Load.addr,
-                                           sizeofIRType(type),
-                                           offset,
-                                           handle_put);
-                        break;
-                    }
-                    default:
-                        break;
-                }
+                HWord size = type == Ity_I1 ? 1 : (HWord) sizeofIRType(type);
+                tl_assert(data->tag == Iex_Const || data->tag == Iex_RdTmp);
+
+                event_add(sb_out,
+                          "handle_put",
+                          data->tag,
+                          mkIRExpr_HWord((HWord) offset),
+                          get_expr_identifier(data),
+                          mkIRExpr_HWord(0),
+                          size,
+                          handle_put);
 
                 addStmtToIRSB(sb_out, st);
                 break;
@@ -244,14 +260,20 @@ IRSB* se_instrument(VgCallbackClosure* closure,
             {
                 IRExpr* data = st->Ist.Store.data;
                 IRType  type = typeOfIRExpr(tyenv, data);
+                HWord size = type == Ity_I1 ? 1 : (HWord) sizeofIRType(type);
+
                 tl_assert(type != Ity_INVALID);
+                tl_assert(data->tag == Iex_Const || data->tag == Iex_RdTmp || data->tag == Iex_Get);
+
                 event_add(sb_out,
-                               "handle_store",
-                               Iex_Load,
-                               st->Ist.Store.addr,
-                               sizeofIRType(type),
-                               0, // unused
-                               handle_store);
+                          "handle_store",
+                          data->tag,
+                          st->Ist.Store.addr,
+                          get_expr_identifier(data),
+                          mkIRExpr_HWord(0),
+                          size,
+                          handle_store);
+
                 addStmtToIRSB(sb_out, st);
                 break;
             }

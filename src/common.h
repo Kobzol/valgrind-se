@@ -33,8 +33,9 @@
 #define LOG_WARNING 2
 #define LOG_ERROR 3
 
-SizeT util_get_const(IRConst* constant);
-
 extern int verbosity_level;
+
+SizeT util_get_const(IRConst* constant);
+void util_print_binary(HWord value);
 
 #endif //VALGRIND_COMMON_H

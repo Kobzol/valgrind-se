@@ -243,7 +243,7 @@ Page* page_prepare_for_write_data(Page *page)
 UChar* page_get_va(Addr a, Int length, Int* loadedSize)
 {
     Page* page = page_find(a);
-    Int offset = page_get_offset(a);
+    Addr offset = page_get_offset(a);
 
     tl_assert(offset + length <= PAGE_SIZE);
     *loadedSize = length;
@@ -728,6 +728,10 @@ SizeT memspace_free(Addr address)
         }
     }
     return size;
+}
+Bool mem_is_heap(Addr a)
+{
+    return current_memspace->heap_space <= a && a <= current_memspace->heap_space_end;
 }
 
 /// mmap
