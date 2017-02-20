@@ -4,21 +4,19 @@
 #include "string.h"
 
 
-static void se_call(Vg_SERequestType type, SEArgType *args, SEArgType count)
+static SEArgType se_call(Vg_SERequestType type, SEArgType *args, SEArgType count)
 {
-    if (VALGRIND_DO_CLIENT_REQUEST_EXPR(1, VG_USERREQ__SE_CALL, type, args, count, NULL, NULL))
-    {
-        fprintf(stderr, "This application is not supported (SE).");
-    }
+    return VALGRIND_DO_CLIENT_REQUEST_EXPR(1, VG_USERREQ__SE_CALL, type, args, count, NULL, NULL);
 }
 
-void se_save_state(void)
+void* se_save_state(void)
 {
-    se_call(VG_USERREQ__SE_SAVE_STATE, NULL, 0);
+    return (void*) se_call(VG_USERREQ__SE_SAVE_STATE, NULL, 0);
 }
-void se_restore_state(void)
+void se_restore_state(void* state)
 {
-    se_call(VG_USERREQ__SE_RESTORE_STATE, NULL, 0);
+    SEArgType arg = (SEArgType) state;
+    se_call(VG_USERREQ__SE_RESTORE_STATE, &arg, 1);
 }
 void se_make_symbolic(void* mem, int size)
 {

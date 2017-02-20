@@ -44,7 +44,6 @@
 #include "src/symbolic.h"
 #include "src/expr.h"
 
-static State* state = NULL;
 static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
 {
     if (!VG_IS_TOOL_USERREQ('S','E', args[0]))
@@ -54,20 +53,22 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
 
     SEArgType* requestArgs = (SEArgType*) args[2];
     SEArgType argsSize = (SEArgType) args[3];
+    *ret = 0;
 
     switch (args[1])
     {
         case VG_USERREQ__SE_SAVE_STATE:
         {
-            state = state_save_current();
+            *ret = (SEArgType) state_save_current();
+            PRINT(LOG_DEBUG, "Saving state at %p\n", (void*) *ret);
             break;
         }
         case VG_USERREQ__SE_RESTORE_STATE:
         {
+            State* state = (State*) requestArgs[0];
             if (state == NULL) break;
-
+            PRINT(LOG_DEBUG, "Restoring state at %p\n", state);
             state_restore(state);
-            state = NULL;
             break;
         }
         case VG_USERREQ__SE_MAKE_SYMBOLIC:
@@ -94,7 +95,6 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
         }
     }
 
-    *ret = 0;
     return True;
 }
 

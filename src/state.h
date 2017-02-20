@@ -6,6 +6,7 @@
 
 #include "../../coregrind/pub_core_aspacemgr.h"
 #include "../../coregrind/pub_core_threadstate.h"
+#include "expr.h"
 
 // TODO: copy symmap and sbits
 
@@ -23,6 +24,9 @@ typedef struct {
     UWord id;
     MemoryImage memimage;
     ThreadState threadstate;
+    RegArea temporaries[TEMPORARIES_COUNT];
+    UChar registerVabits[REGISTER_MEMORY_SIZE];
+    UChar registerSbits[REGISTER_MEMORY_SIZE];
 } State;
 
 State* state_save_current(void);

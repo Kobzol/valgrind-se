@@ -220,6 +220,12 @@ State* state_save_current(void)
 
     // memory state
     memimage_save(&state->memimage);
+
+    // register state
+    VG_(memcpy)(state->temporaries, temporaries, sizeof(temporaries));
+    VG_(memcpy)(state->registerVabits, registerVabits, sizeof(registerVabits));
+    VG_(memcpy)(state->registerSbits, registerSbits, sizeof(registerSbits));
+
     return state;
 }
 void state_restore(State* state)
@@ -235,4 +241,9 @@ void state_restore(State* state)
 
     // restore memory state
     memimage_restore(&state->memimage);
+
+    // restore register state
+    VG_(memcpy)(temporaries, state->temporaries, sizeof(temporaries));
+    VG_(memcpy)(registerVabits, state->registerVabits, sizeof(registerVabits));
+    VG_(memcpy)(registerSbits, state->registerSbits, sizeof(registerSbits));
 }

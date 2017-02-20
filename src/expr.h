@@ -7,6 +7,31 @@
 #define TEMPORARIES_COUNT 4096
 #define REGISTER_MEMORY_SIZE (REGISTER_SIZE * 128)
 
+// TODO: store this into state
+typedef struct
+{ ;
+    UChar vabits[REGISTER_SIZE];
+    UChar sbits[REGISTER_SIZE];
+} RegArea;
+
+typedef union
+{
+    unsigned int size[2];
+    HWord value;
+} CombinedSize;
+
+typedef union
+{
+    struct
+    {
+        unsigned int tag1 : 16;
+        unsigned int tag2 : 16;
+        unsigned int opType : 31;
+        unsigned char isBinaryOpTag : 1;
+    };
+    HWord value;
+} CombinedTag;
+
 typedef struct
 {
     UChar* vabits;
@@ -14,6 +39,10 @@ typedef struct
     SizeT length;
     SizeT remaining;
 } ExprData;
+
+extern RegArea temporaries[TEMPORARIES_COUNT];
+extern UChar registerVabits[REGISTER_MEMORY_SIZE];
+extern UChar registerSbits[REGISTER_MEMORY_SIZE];
 
 
 void expr_init(void);

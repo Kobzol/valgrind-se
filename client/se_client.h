@@ -18,8 +18,8 @@ typedef enum {
     VG_USERREQ__SE_MAKE_SYMBOLIC = 3
 } Vg_SERequestType;
 
-void se_save_state(void);
-void se_restore_state(void);
+void* se_save_state(void);
+void se_restore_state(void* state);
 void se_make_symbolic(void* mem, int size);
 
 #ifdef __cplusplus

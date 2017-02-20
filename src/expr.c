@@ -2,36 +2,12 @@
 #include "memory.h"
 #include "../../VEX/pub/libvex_guest_amd64.h"
 
-// TODO: store this into state
-typedef struct
-{ ;
-    UChar vabits[REGISTER_SIZE];
-    UChar sbits[REGISTER_SIZE];
-} RegArea;
-
-typedef union
-{
-    unsigned int size[2];
-    HWord value;
-} CombinedSize;
-
-typedef union
-{
-    struct
-    {
-        unsigned int tag1 : 16;
-        unsigned int tag2 : 16;
-        unsigned int opType : 31;
-        unsigned char isBinaryOpTag : 1;
-    };
-    HWord value;
-} CombinedTag;
-
 
 static RegArea const_area;
-static RegArea temporaries[TEMPORARIES_COUNT];
-static UChar registerVabits[REGISTER_MEMORY_SIZE];
-static UChar registerSbits[REGISTER_MEMORY_SIZE];
+RegArea temporaries[TEMPORARIES_COUNT];
+UChar registerVabits[REGISTER_MEMORY_SIZE];
+UChar registerSbits[REGISTER_MEMORY_SIZE];
+
 
 static void expr_reg_load(HWord offset, SizeT size, ExprData* data)
 {
