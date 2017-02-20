@@ -32,6 +32,14 @@ void dump_vabits(VA* va, SizeT start, SizeT count)
     }
     PRINT(LOG_DEBUG, "\n");
 }
+void dump_bits(UChar* bits, SizeT count)
+{
+    for (SizeT start = 0; start < count; start++)
+    {
+        PRINT(LOG_DEBUG, "%d", (int) bits[start]);
+    }
+    PRINT(LOG_DEBUG, "\n");
+}
 void dump_stacktrace(void)
 {
     VG_(get_and_pp_StackTrace)(VG_(get_running_tid)(), 10);

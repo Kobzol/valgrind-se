@@ -91,6 +91,7 @@ void memspace_init(void);
 /// dump
 void dump_alloc_blocks(XArray* blocks);
 void dump_vabits(VA* va, SizeT start, SizeT count);
+void dump_bits(UChar* bits, SizeT count);
 void dump_stacktrace(void);
 
 /// VA

@@ -1,19 +1,13 @@
 #include "expr.h"
 #include "memory.h"
-
-#define REG_AREA_SIZE 32
-#define TMP_AREA_COUNT 4096
+#include "../../VEX/pub/libvex_guest_amd64.h"
 
 // TODO: store this into state
 typedef struct
-{
-    UChar value[REG_AREA_SIZE];
-    UChar vabits[REG_AREA_SIZE];
-    UChar sbits[REG_AREA_SIZE];
+{ ;
+    UChar vabits[REGISTER_SIZE];
+    UChar sbits[REGISTER_SIZE];
 } RegArea;
-
-#define EXPR_MASK ((1 << 13) - 1)
-#define IS_BINOP(tag) (tag & (1 << 63))
 
 typedef union
 {
@@ -27,105 +21,129 @@ typedef union
     {
         unsigned int tag1 : 16;
         unsigned int tag2 : 16;
-        unsigned int tagOp : 31;
-        unsigned char binaryOp : 1;
+        unsigned int opType : 31;
+        unsigned char isBinaryOpTag : 1;
     };
     HWord value;
 } CombinedTag;
 
 
 static RegArea const_area;
-static RegArea temporaries[TMP_AREA_COUNT];
+static RegArea temporaries[TEMPORARIES_COUNT];
+static UChar registerVabits[REGISTER_MEMORY_SIZE];
+static UChar registerSbits[REGISTER_MEMORY_SIZE];
 
 static void expr_reg_load(HWord offset, SizeT size, ExprData* data)
 {
-    static RegArea area;
-    tl_assert(size <= REG_AREA_SIZE);
+    tl_assert(size <= REGISTER_SIZE);
+    tl_assert(offset < REGISTER_MEMORY_SIZE); // assure we have enough registers
 
-    VG_(get_shadow_regs_area)(VG_(get_running_tid()), (UChar*) &area, REG_SHADOW, offset, sizeof(RegArea));
-
-    data->value = area.value;
-    data->vabits = area.vabits;
-    data->sbits = area.sbits;
+    data->vabits = registerVabits + offset;
+    data->sbits = registerSbits + offset;
     data->length = size;
+    data->remaining = 0;
 }
 static void expr_const_load(HWord constant, SizeT size, ExprData* data)
 {
-    tl_assert(size <= REG_AREA_SIZE);
+    tl_assert(size <= REGISTER_SIZE);
 
-    VG_(memcpy)(const_area.value, &constant, size); // copy constant to const area
-
-    data->value = const_area.value;
     data->vabits = const_area.vabits;
     data->sbits = const_area.sbits;
     data->length = size;
+    data->remaining = 0;
 }
 static void expr_mem_load(Addr a, SizeT size, ExprData* data)
 {
     Page* page = page_find(a);
+
+    if (page == NULL)
+    {
+        data->length = 0;
+        return;
+    }
+
     Addr offset = page_get_offset(a);
 
-    tl_assert(offset + size < PAGE_SIZE);   // assure we don't go over page boundary
+    SizeT length = size;
+    SizeT remaining = 0;
+    /*if (offset + size >= PAGE_SIZE)
+    {
+        remaining = (offset + size) - PAGE_SIZE;
+        length -= remaining;
+    }*/
+    tl_assert(offset + length <= PAGE_SIZE);   // assure we don't go over page boundary
 
-    data->value = (UChar*) a;
     data->vabits = page->va->vabits + offset;
     data->sbits = page->va->sbits + offset;
-    data->length = size;
+    data->length = length;
+    data->remaining = remaining;
 }
 static void expr_tmp_load(HWord temp, SizeT size, ExprData* data)
 {
-    tl_assert(size <= REG_AREA_SIZE);
-    tl_assert(temp <= TMP_AREA_COUNT);    // assure we have enough temporaries
+    tl_assert(size <= REGISTER_SIZE);
+    tl_assert(temp < TEMPORARIES_COUNT);    // assure we have enough temporaries
 
-    data->value = temporaries[temp].value;
     data->vabits = temporaries[temp].vabits;
     data->sbits = temporaries[temp].sbits;
     data->length = size;
+    data->remaining = 0;
 }
 
 static void expr_reg_store(HWord offset, SizeT size, ExprData* data)
 {
-    RegArea area;
-    tl_assert(size <= REG_AREA_SIZE);
+    tl_assert(size <= REGISTER_SIZE);
+    tl_assert(offset < REGISTER_MEMORY_SIZE);
 
-    VG_(memcpy)(area.value, data->value, size);
-    VG_(memcpy)(area.vabits, data->vabits, size);
-    VG_(memcpy)(area.sbits, data->sbits, size);
-    VG_(set_shadow_regs_area)(VG_(get_running_tid()), REG_SHADOW, offset, sizeof(RegArea), (UChar*) &area);
+    VG_(memmove)(registerVabits + offset, data->vabits, size);
+    VG_(memmove)(registerSbits + offset, data->sbits, size);
 }
 static void expr_tmp_store(HWord temp, SizeT size, ExprData* data)
 {
-    tl_assert(size <= REG_AREA_SIZE);
-    tl_assert(temp < TMP_AREA_COUNT);
+    tl_assert(size <= REGISTER_SIZE);
+    tl_assert(temp < TEMPORARIES_COUNT);
 
-    VG_(memcpy)(temporaries[temp].value, data->value, size);
-    VG_(memcpy)(temporaries[temp].vabits, data->vabits, size);
-    VG_(memcpy)(temporaries[temp].sbits, data->sbits, size);
+    VG_(memmove)(temporaries[temp].vabits, data->vabits, size);
+    VG_(memmove)(temporaries[temp].sbits, data->sbits, size);
 }
 
 static void expr_load_binop(IROp binaryOp, ExprData* arg1, ExprData* arg2, ExprData* result)
 {
-    // TODO
+    /*if (binaryOp >= Iop_8Uto16 && binaryOp <= Iop_32Sto64)
+    {
+        // widening cast
+    }*/
+
+    // TODO: check both arguments
+    result->vabits = arg1->vabits;
+    result->sbits = arg1->sbits;
+    result->length = arg1->length;
+    result->remaining = 0;
 }
 
 void expr_init(void)
 {
-    tl_assert(sizeof(RegArea) == REG_AREA_SIZE * 3);
+    tl_assert(sizeof(RegArea) == REGISTER_SIZE * 2);
 
-    for (int i = 0; i < REG_AREA_SIZE; i++)
+    for (int i = 0; i < REGISTER_SIZE; i++)
     {
-        const_area.value[i] = 0;
         const_area.vabits[i] = MEM_UNDEFINED;
         const_area.sbits[i] = SYM_CONCRETE;
+    }
+
+    for (int i = 0; i < sizeof(registerVabits); i++)
+    {
+        registerVabits[i] = MEM_DEFINED;
+        registerSbits[i] = SYM_CONCRETE;
     }
 }
 
 void expr_load(HWord exprType, HWord identifier, HWord identifier2, HWord size, ExprData* data)
 {
-    if (IS_BINOP(exprType))
+    CombinedTag tag;
+    tag.value = exprType;
+
+    if (tag.isBinaryOpTag)
     {
-        CombinedTag tag;
-        tag.value = exprType;
         CombinedSize combinedSize;
         combinedSize.value = size;
 
@@ -133,7 +151,7 @@ void expr_load(HWord exprType, HWord identifier, HWord identifier2, HWord size, 
         expr_load(tag.tag1, identifier, identifier2, combinedSize.size[0], &data1);
         expr_load(tag.tag2, identifier2, identifier, combinedSize.size[1], &data2);
 
-        expr_load_binop((IROp) tag.tagOp, &data1, &data2, data);
+        expr_load_binop((IROp) tag.opType, &data1, &data2, data);
     }
     else
     {
@@ -157,6 +175,19 @@ void expr_load(HWord exprType, HWord identifier, HWord identifier2, HWord size, 
         }
     }
 }
+SizeT expr_get_size(HWord exprType, SizeT size, int index)
+{
+    CombinedTag tag;
+    tag.value = exprType;
+
+    if (tag.isBinaryOpTag)
+    {
+        CombinedSize combinedSize;
+        combinedSize.value = size;
+        return combinedSize.size[index];
+    }
+    else return size;
+}
 void expr_store(HWord exprType, HWord destination, HWord size, ExprData* data)
 {
     switch (exprType)
@@ -179,8 +210,8 @@ HWord expr_pack_binop_tag(IROp operation, Int tag1, Int tag2)
 
     tag.tag1 = (unsigned int) tag1;
     tag.tag2 = (unsigned int) tag2;
-    tag.tagOp = operation;
-    tag.binaryOp = True;
+    tag.opType = (unsigned int) operation;
+    tag.isBinaryOpTag = True;
 
     return tag.value;
 }

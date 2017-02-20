@@ -3,12 +3,16 @@
 
 #include "common.h"
 
+#define REGISTER_SIZE 256
+#define TEMPORARIES_COUNT 4096
+#define REGISTER_MEMORY_SIZE (REGISTER_SIZE * 128)
+
 typedef struct
 {
-    UChar* value;
     UChar* vabits;
     UChar* sbits;
     SizeT length;
+    SizeT remaining;
 } ExprData;
 
 
@@ -19,6 +23,8 @@ void expr_init(void);
 /// Const -> identifier = constant
 /// RdTmp -> identifier = temp number
 void expr_load(HWord exprType, HWord identifier, HWord identifier2, HWord size, ExprData* data);
+
+SizeT expr_get_size(HWord exprType, SizeT size, int index);
 
 /// Put -> identifier = register offset
 /// Store -> identifier = address
