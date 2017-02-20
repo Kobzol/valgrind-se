@@ -1,4 +1,5 @@
 #include "memory.h"
+#include "symbolic.h"
 
 VA* uniform_va[4];
 
@@ -580,7 +581,7 @@ void memspace_init(void)
     MemorySpace *ms = VG_(malloc)("se.memspace", sizeof(MemorySpace));
     VG_(memset)(ms, 0, sizeof(MemorySpace));
     ms->auxmap = VG_(OSetGen_Create)(offsetof(AuxMapEnt, base), NULL, VG_(malloc), "se.auxmap", VG_(free));
-    ms->symmap = VG_(OSetGen_Create)(offsetof(AuxMapEnt, base), NULL, VG_(malloc), "se.symmap", VG_(free));
+    ms->symmap = VG_(OSetGen_Create)(offsetof(SymConMapEnt, base), NULL, VG_(malloc), "se.symmap", VG_(free));
     ms->heap_space = heap_space;
     ms->heap_space_end = heap_space + heap_max_size;
     ms->allocation_blocks = VG_(newXA) (VG_(malloc), "se.allocations", VG_(free), sizeof(AllocationBlock));

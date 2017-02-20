@@ -6,7 +6,9 @@
 
 #include "../../coregrind/pub_core_aspacemgr.h"
 #include "../../coregrind/pub_core_threadstate.h"
+#include "pub_tool_oset.h"
 #include "expr.h"
+#include "symbolic.h"
 
 // TODO: copy symmap and sbits
 
@@ -16,6 +18,8 @@ typedef struct {
     Page **pages;
     UWord pages_count;
     XArray *allocation_blocks;
+    SymConMapEnt* sym_entries;
+    UWord sym_entries_count;
 } MemoryImage;
 
 // First two entries has to correspond to VgHashNode

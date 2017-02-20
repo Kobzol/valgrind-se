@@ -60,14 +60,12 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
         case VG_USERREQ__SE_SAVE_STATE:
         {
             *ret = (SEArgType) state_save_current();
-            PRINT(LOG_DEBUG, "Saving state at %p\n", (void*) *ret);
             break;
         }
         case VG_USERREQ__SE_RESTORE_STATE:
         {
             State* state = (State*) requestArgs[0];
             if (state == NULL) break;
-            PRINT(LOG_DEBUG, "Restoring state at %p\n", state);
             state_restore(state);
             break;
         }

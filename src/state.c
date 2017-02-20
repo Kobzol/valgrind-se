@@ -1,4 +1,6 @@
 #include "state.h"
+#include "memory.h"
+
 
 static INLINE UWord make_new_id(void)
 {
@@ -68,6 +70,20 @@ static void memimage_save_page_content(Page* page)
         }
     }
 }
+static void memimage_save_symmap(MemoryImage* memimage)
+{
+    UWord size = VG_(OSetGen_Size)(current_memspace->symmap);
+    memimage->sym_entries = VG_(malloc)("se.symmap", size * sizeof(SymConMapEnt));
+    memimage->sym_entries_count = size;
+
+    VG_(OSetGen_ResetIter)(current_memspace->symmap);
+    SymConMapEnt* elem;
+    SymConMapEnt* stateElem = memimage->sym_entries;
+    while ((elem = VG_(OSetGen_Next(current_memspace->symmap))))
+    {
+        *stateElem++ = *elem;
+    }
+}
 static void memimage_save(MemoryImage* memimage)
 {
     // count the number of pages
@@ -88,6 +104,9 @@ static void memimage_save(MemoryImage* memimage)
             memimage_save_page_content(elem->page);
         }
     }
+
+    memimage_save_symmap(memimage);
+
     memimage->allocation_blocks = VG_(cloneXA)("se.allocation_blocks",
                                                current_memspace->allocation_blocks);
 }
@@ -159,8 +178,19 @@ static void memimage_restore_page_content(Page* page, Page* old_page)
         }
     }
 }
+static void memimage_restore_symmap(MemoryImage* memimage)
+{
+    VG_(OSetGen_Destroy)(current_memspace->symmap);
+    current_memspace->symmap = VG_(OSetGen_Create)(offsetof(SymConMapEnt, base), NULL, VG_(malloc), "se.symmap", VG_(free));
+    for (Word i = 0; i < memimage->sym_entries_count; i++)
+    {
+        VG_(OSetGen_Insert)(current_memspace->symmap, &memimage->sym_entries[i]);
+    }
+}
 static void memimage_restore(MemoryImage* memimage)
 {
+    memimage_restore_symmap(memimage);
+
     OSet* auxmap = current_memspace->auxmap;
     UWord i = 0;
     AuxMapEnt* elem;
