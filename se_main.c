@@ -76,7 +76,7 @@ static Bool se_handle_client_request (ThreadId tid, UWord* args, UWord* ret)
 
             set_address_range_sym(a, size, SYM_SYMBOLIC);
 
-            char buffer[512];
+            char buffer[128];
             VG_(sprintf)(buffer, "%s 0 %lu", MSG_CREATE_CONSTRAINT, size);
 
             NetMessage msg = net_msg(conn, buffer);

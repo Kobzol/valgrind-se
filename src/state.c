@@ -1,5 +1,4 @@
 #include "state.h"
-#include "memory.h"
 
 
 static INLINE UWord make_new_id(void)

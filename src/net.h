@@ -13,6 +13,7 @@ typedef struct
 } NetMessage;
 
 #define MSG_CREATE_CONSTRAINT "CREATE_CONSTRAINT"
+#define MSG_STORE "STORE"
 
 // global vars
 Socket conn;

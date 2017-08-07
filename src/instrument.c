@@ -4,6 +4,7 @@
 
 #include "../../VEX/pub/libvex.h"
 #include "../../VEX/pub/libvex_ir.h"
+#include "net.h"
 
 
 static Bool LOG_INSTRUMENTATION = False;
@@ -61,12 +62,11 @@ static VG_REGPARM(3) void handle_store(HWord exprType, HWord addr, HWord source,
         tl_assert(0); // no return here
     }
 
-    /*if (addr <= 0x802410000 && 0x802410000 <= addr + size)
-    {
-        dump_stacktrace();
-        dump_bits(page->va->vabits + page_get_offset(0x802410000), 4);
-        PRINT(LOG_DEBUG, "Writing to a\n");
-    }*/
+    char buffer[128];
+    VG_(sprintf)(buffer, "%s 0 %lu", MSG_STORE, size);
+
+    NetMessage msg = net_msg(conn, buffer);
+    tl_assert(msg.ok);
 
     page = page_prepare_for_write_data(page);
     VA *va = page->va;

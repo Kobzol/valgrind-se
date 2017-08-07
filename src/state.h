@@ -10,8 +10,6 @@
 #include "expr.h"
 #include "symbolic.h"
 
-// TODO: copy symmap and sbits
-
 extern SysRes ML_(am_do_munmap_NO_NOTIFY)(Addr start, SizeT length);
 
 typedef struct {
